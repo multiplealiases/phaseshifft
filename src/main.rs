@@ -33,6 +33,7 @@ fn main() {
 
     let mut input = hound::WavReader::open(args.input).unwrap();
     let spec = input.spec();
+    assert!(spec.sample_format == hound::SampleFormat::Float, "input must be floating-point WAV (unfortunately)");
 
     let input: Vec<f32> = input.samples().map(|n| n.unwrap()).collect();
     let input_shifted: Vec<f32> = input.iter().cloned().cycle().skip(args.skip).take(input.len()).collect();
