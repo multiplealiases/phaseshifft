@@ -3,18 +3,26 @@ use num::Complex;
 use realfft::RealFftPlanner;
 use std::path::PathBuf;
 
+/// Takes the FFT of an audio file and a shifted version of it,
+/// and splices its amplitude and the phase of its shifted version together, then runs the inverse FFT on it.
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct Args {
+    /// input file (must be pcm_f32le WAV)
     input: PathBuf,
 
+    /// output file
     output: PathBuf,
+
+    /// size of FFT
     #[arg(short = 's', long, default_value_t = 512)]
     size: usize,
 
+    /// how much to step (works as rudimentary speedup/slowdown if not equal to -s)
     #[arg(short = 'p', long, default_value_t = 256)]
     step: usize,
 
+    /// samples to shift the shifted version by
     #[arg(short = 'k', long, default_value_t = 512)]
     skip: usize,
 }
