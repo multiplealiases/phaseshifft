@@ -38,8 +38,8 @@ fn main() {
         let (mut input, mut input_shift) = (w.to_owned(), ws.to_owned());
         let (mut out, mut out_shift) = (r2c.make_output_vec(), r2c.make_output_vec());
 
-        r2c.process(&mut input, &mut out);
-        r2c.process(&mut input_shift, &mut out_shift);
+        let _ = r2c.process(&mut input, &mut out);
+        let _ = r2c.process(&mut input_shift, &mut out_shift);
 
         let amplitude = out.into_iter().map(|c| c.im);
         let phase = out_shift.into_iter().map(|c| c.re);
@@ -54,7 +54,7 @@ fn main() {
 
         let c2r = plan.plan_fft_inverse(args.size);
         let mut out = c2r.make_output_vec();
-        c2r.process(&mut combined, &mut out);
+        let _ = c2r.process(&mut combined, &mut out);
 
         for s in out {
             writer.write_sample(s).unwrap();
