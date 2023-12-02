@@ -50,12 +50,12 @@ fn main() {
         let _ = r2c.process(&mut input, &mut out);
         let _ = r2c.process(&mut input_shift, &mut out_shift);
 
-        let amplitude = out.into_iter().map(|c| c.im);
-        let phase = out_shift.into_iter().map(|c| c.re);
+        let amplitude = out.into_iter().map(|c| c.to_polar().0);
+        let phase = out_shift.into_iter().map(|c| c.to_polar().1);
         let mut combined: Vec<Complex<f32>> = Vec::new();
 
-        for (re, im) in phase.zip(amplitude) {
-            let c = Complex{ re, im };
+        for (a, p) in amplitude.zip(phase) {
+            let c = Complex::from_polar(a, p);
             combined.push(c);
         }
 
