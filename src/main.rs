@@ -50,6 +50,8 @@ fn main() {
             combined.push(c);
         }
 
+        let mut combined = fft_normalize(combined);
+
         let c2r = plan.plan_fft_inverse(args.size);
         let mut out = c2r.make_output_vec();
         c2r.process(&mut combined, &mut out);
