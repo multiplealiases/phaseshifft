@@ -36,7 +36,8 @@ fn main() {
     assert!(spec.sample_format == hound::SampleFormat::Float, "input must be floating-point WAV (unfortunately)");
 
     let input: Vec<f32> = input.samples().map(|n| n.unwrap()).collect();
-    let input_shifted: Vec<f32> = input.iter().cloned().cycle().skip(args.skip).take(input.len()).collect();
+    let mut input_shifted: Vec<f32> = input.clone();
+    input_shifted.rotate_left(args.skip);
 
     let windows = input.windows(args.size).step_by(args.step);
     let windows_shifted = input_shifted.windows(args.size).step_by(args.step);
