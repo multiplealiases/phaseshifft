@@ -46,22 +46,9 @@ fn main() {
     let windows_shifted = input_shifted.windows(args.size).step_by(args.step);
     let mut writer = hound::WavWriter::create(args.output, spec).unwrap();
 
-    let r2c = plan.plan_fft_forward(args.size);
-    let c2r = plan.plan_fft_inverse(args.size);
     for (w, ws) in windows.zip(windows_shifted) {
         let (mut input, mut input_shift) = (w.to_owned(), ws.to_owned());
-        let (mut out, mut out_shift) = (r2c.make_output_vec(), r2c.make_output_vec());
-
-        let _ = r2c.process(&mut input, &mut out);
-        let _ = r2c.process(&mut input_shift, &mut out_shift);
-        let combined: Vec<Complex<f32>> = std::iter::zip(out, out_shift)
-            .map(|(a, p)| p.scale((a.norm_sqr() / p.norm_sqr()).sqrt()))
-            .collect();
-
-        let mut combined = fft_normalize(combined);
-
-        let mut out = c2r.make_output_vec();
-        let _ = c2r.process(&mut combined, &mut out);
+        let out = phase_switcheroo(&mut input, &mut input_shift, &mut plan, args.size);
 
         for s in out {
             writer.write_sample(s).unwrap();
@@ -73,4 +60,32 @@ fn main() {
 fn fft_normalize(window: Vec<Complex<f32>>) -> Vec<Complex<f32>> {
     let size = (window.len() as f32 + 1.) * 2.;
     window.into_iter().map(|c| c.unscale(size)).collect()
+}
+
+fn phase_switcheroo(
+    first: &mut [f32],
+    second: &mut [f32],
+    plan: &mut RealFftPlanner<f32>,
+    size: usize,
+) -> Vec<f32> {
+    let r2c = plan.plan_fft_forward(size);
+    let c2r = plan.plan_fft_inverse(size);
+
+    let (mut out_first, mut out_second, mut out_combined) = (
+        r2c.make_output_vec(),
+        r2c.make_output_vec(),
+        c2r.make_output_vec()
+    );
+
+    let _ = r2c.process(first, &mut out_first);
+    let _ = r2c.process(second, &mut out_second);
+
+    let combined = std::iter::zip(out_first, out_second)
+        .map(|(a, p)| p.scale((a.norm_sqr() / p.norm_sqr()).sqrt()))
+        .collect();
+
+    let mut combined = fft_normalize(combined);
+
+    let _ = c2r.process(&mut combined, &mut out_combined);
+    out_combined
 }
