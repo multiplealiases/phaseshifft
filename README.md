@@ -24,7 +24,7 @@ Slow down by half:
 $ phaseshifft input.flac output.flac --skip 0 --size 1024 --step 512
 ```
 
-Do horrible things to the phase, and/or bad tape delay:
+Do horrible things to the phase, something something introduces noise:
 
 ```
 $ phaseshifft input.flac output.flac --skip 1024 --size 512 --step 512
