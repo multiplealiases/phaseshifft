@@ -57,11 +57,6 @@ fn main() {
     writer.finalize().unwrap();
 }
 
-fn fft_normalize(window: Vec<Complex<f32>>) -> Vec<Complex<f32>> {
-    let size = (window.len() as f32 + 1.) * 2.;
-    window.into_iter().map(|c| c.unscale(size)).collect()
-}
-
 fn phase_switcheroo(
     first: &mut [f32],
     second: &mut [f32],
@@ -80,11 +75,10 @@ fn phase_switcheroo(
     let _ = r2c.process(first, &mut out_first);
     let _ = r2c.process(second, &mut out_second);
 
-    let combined = std::iter::zip(out_first, out_second)
-        .map(|(a, p)| p.scale((a.norm_sqr() / p.norm_sqr()).sqrt()))
+    let unsize = 1. / size as f32;
+    let mut combined = std::iter::zip(out_first, out_second)
+        .map(|(a, p)| p.scale(unsize * (a.norm_sqr() / p.norm_sqr()).sqrt()))
         .collect();
-
-    let mut combined = fft_normalize(combined);
 
     let _ = c2r.process(&mut combined, &mut out_combined);
     out_combined
