@@ -1,5 +1,4 @@
 use clap::Parser;
-use num::Complex;
 use realfft::RealFftPlanner;
 use std::path::PathBuf;
 
