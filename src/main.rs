@@ -50,15 +50,9 @@ fn main() {
 
         let _ = r2c.process(&mut input, &mut out);
         let _ = r2c.process(&mut input_shift, &mut out_shift);
-
-        let amplitude = out.into_iter().map(|c| c.to_polar().0);
-        let phase = out_shift.into_iter().map(|c| c.to_polar().1);
-        let mut combined: Vec<Complex<f32>> = Vec::new();
-
-        for (a, p) in amplitude.zip(phase) {
-            let c = Complex::from_polar(a, p);
-            combined.push(c);
-        }
+        let combined: Vec<Complex<f32>> = std::iter::zip(out, out_shift).map(|(a, p)|
+                                                                            p.scale((a.norm_sqr() / p.norm_sqr()).sqrt()))
+                                                                            .collect();
 
         let mut combined = fft_normalize(combined);
 
