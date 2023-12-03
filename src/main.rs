@@ -43,8 +43,9 @@ fn main() {
     let windows_shifted = input_shifted.windows(args.size).step_by(args.step);
     let mut writer = hound::WavWriter::create(args.output, spec).unwrap();
 
+    let r2c = plan.plan_fft_forward(args.size);
+    let c2r = plan.plan_fft_inverse(args.size);
     for (w, ws) in windows.zip(windows_shifted) {
-        let r2c = plan.plan_fft_forward(args.size);
         let (mut input, mut input_shift) = (w.to_owned(), ws.to_owned());
         let (mut out, mut out_shift) = (r2c.make_output_vec(), r2c.make_output_vec());
 
@@ -56,7 +57,6 @@ fn main() {
 
         let mut combined = fft_normalize(combined);
 
-        let c2r = plan.plan_fft_inverse(args.size);
         let mut out = c2r.make_output_vec();
         let _ = c2r.process(&mut combined, &mut out);
 
