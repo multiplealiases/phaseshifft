@@ -75,9 +75,10 @@ fn phase_switcheroo(
     let _ = r2c.process(second, &mut out_second);
 
     let unsize = 1. / size as f32;
-    out_first = std::iter::zip(out_first, out_second)
-        .map(|(a, p)| p.scale(unsize * (a.norm_sqr() / p.norm_sqr()).sqrt()))
-        .collect();
+    out_first
+        .iter_mut()
+        .zip(out_second)
+        .for_each(|(a, p)| *a = p.scale(unsize * (a.norm_sqr() / p.norm_sqr()).sqrt()));
 
     let _ = c2r.process(&mut out_first, &mut out_combined);
     out_combined
