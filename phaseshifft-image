@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+
+set -o nounset
+set -o errexit
+
+function usage() {
+    echo "Usage: phaseshifft-image [options] <input image>"
+}
+
+function banner() {
+    echo "Run phaseshifft on images, interpeted as u8 audio data"
+}
+
+function file_notexist(){
+    printf ''\''%s'\'': file does not exist\n' "$1"
+    exit 1
+}
+
+function file_none(){
+    echo No file was specified.
+    help_text
+    exit 1
+}
+
+function help_text(){
+    cat << EOF
+$(banner)
+$(usage)
+
+Defaults shown in [].
+phaseshifft options:
+-s, --size     FFT size [128]
+-p, --step     step through n samples per window; generally should be equal to -s [128]
+-k, --skip     skip n samples [64]
+image options:
+-f, --offset   offset the intermediate audio by n samples
+-m, --pix-fmt  pixel format [rgb24]
+-o, --output   output file name
+-h, --help     this help
+EOF
+}
+
+function cleanup(){
+    rm -r "$tmp"
+}
+
+ARGS="$(getopt --options h,s:,p:,k:,m:,f:,o: --long help,size:,step:,skip:,pix-fmt:,offset:,output: -- "$@")"
+eval set -- "$ARGS"
+while true; do
+    case "$1" in
+    -h | --help)
+        help_text
+        exit 1
+        ;;
+    -s | --size)
+        size="$2"
+        shift 2
+        ;;
+    -p | --step)
+        step="$2"
+        shift 2
+        ;;
+    -k | --skip)
+        skip="$2"
+        shift 2
+        ;;
+    -m | --pix-fmt)
+        pixfmt="$2"
+        shift 2
+        ;;
+    -f | --offset)
+        offset="$2"
+        shift 2
+        ;;
+    -o | --output)
+        output_name="$2"
+        shift 2
+        ;;
+    --)
+        set +o nounset
+        if [[ -z "$2" ]]
+        then
+            file_none
+        elif [[ ! -e "$2" ]]
+        then
+            file_notexist "$2"
+        fi
+        set -o nounset
+        filepath="$2"
+        break
+        ;;
+    *)
+        printf 'How did you get here? The last args I saw were \n%s\n' "$@"
+        exit 1
+        ;;
+    esac
+done
+
+size="${size:-128}"
+step="${step:-128}"
+skip="${skip:-64}"
+pixfmt="${pixfmt:-rgb24}"
+offset="${offset:-0}"
+
+filename="$(basename "$filepath")"
+base_filename="${filename%.*}"
+blanked_name="$base_filename"-"$size"-"$step"-"$skip"-"$offset"-"$pixfmt"
+output_name="${output_name:-$blanked_name}"
+
+res="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$filepath")"
+tmp="$(mktemp -d)"
+trap 'cleanup' ERR EXIT
+
+ffmpeg -hide_banner -i "$filepath" -f rawvideo -pix_fmt "$pixfmt" "$tmp"/tmp.rgb24
+ffmpeg -hide_banner -f u8 -ar 48000 -i "$tmp"/tmp.rgb24 -c:a pcm_f32le "$tmp"/tmp.wav
+
+phaseshifft -s "$size" -p "$step" -k "$skip" "$tmp"/tmp.wav "$tmp"/tmp-phased.wav
+
+ffmpeg -hide_banner -i "$tmp"/tmp-phased.wav -af adelay=delays="$offset"S:all=1 -f u8 "$tmp"/tmp-phased.u8
+truncate --reference "$tmp"/tmp.rgb24 "$tmp"/tmp-phased.u8
+
+ffmpeg -hide_banner -f rawvideo -pix_fmt "$pixfmt" -s "$res" -i "$tmp"/tmp-phased.u8 "$output_name".png -y
