@@ -33,7 +33,10 @@ fn main() {
 
     let mut input = hound::WavReader::open(args.input).unwrap();
     let spec = input.spec();
-    assert!(spec.sample_format == hound::SampleFormat::Float, "input must be floating-point WAV (unfortunately)");
+    assert!(
+        spec.sample_format == hound::SampleFormat::Float,
+        "input must be floating-point WAV (unfortunately)"
+    );
 
     let input: Vec<f32> = input.samples().map(|n| n.unwrap()).collect();
     let mut input_shifted: Vec<f32> = input.clone();
@@ -51,9 +54,9 @@ fn main() {
 
         let _ = r2c.process(&mut input, &mut out);
         let _ = r2c.process(&mut input_shift, &mut out_shift);
-        let combined: Vec<Complex<f32>> = std::iter::zip(out, out_shift).map(|(a, p)|
-                                                                            p.scale((a.norm_sqr() / p.norm_sqr()).sqrt()))
-                                                                            .collect();
+        let combined: Vec<Complex<f32>> = std::iter::zip(out, out_shift)
+            .map(|(a, p)| p.scale((a.norm_sqr() / p.norm_sqr()).sqrt()))
+            .collect();
 
         let mut combined = fft_normalize(combined);
 
