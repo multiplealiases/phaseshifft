@@ -30,10 +30,10 @@ $(usage)
 Defaults shown in [].
 phaseshifft options:
 -s, --size     FFT size [128]
--p, --step     step through n samples per window; generally should be equal to -s [128]
+-p, --step     step through n samples per window; generally should be equal to -s [-s]
 -k, --skip     skip n samples [64]
 image options:
--f, --offset   offset the intermediate audio by n samples
+-f, --offset   offset the intermediate audio by n samples [-k]
 -m, --pix-fmt  pixel format [rgb24]
 -o, --output   output file name
 -h, --help     this help
@@ -97,10 +97,10 @@ while true; do
 done
 
 size="${size:-128}"
-step="${step:-128}"
+step="${step:-$size}"
 skip="${skip:-64}"
+offset="${offset:-$skip}"
 pixfmt="${pixfmt:-rgb24}"
-offset="${offset:-0}"
 
 filename="$(basename "$filepath")"
 base_filename="${filename%.*}"
