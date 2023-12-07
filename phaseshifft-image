@@ -22,12 +22,44 @@ function file_none(){
     exit 1
 }
 
+function die() {
+    # shellcheck disable=SC2059
+    printf "$@"
+    exit 1
+}
+
+function verify_mode(){
+    mode="$1"
+    case "$mode" in
+    shift)
+        [[ -n $3 ]] && die 'shift mode takes 1 filename argument, saw %s\n' "$(($# - 1))"
+        firstpath="$2"
+        return 0
+        ;;
+    transplant)
+        [[ -z $3 ]] && die 'transplant mode takes 2 filename arguments, saw %s\n' "$(($# - 1))"
+        firstpath="$2"
+        secondpath="$3"
+        return 0
+        ;;
+    *)
+        printf 'mode %s does not exist\n' "$mode"
+        return 1
+        ;;
+    esac
+}
+
 function help_text(){
     cat << EOF
 $(banner)
 $(usage)
 
 Defaults shown in [].
+
+modes:
+shift          shift ahead a single input signal and switch phases with it
+transplant     transplant phase data from a second signal into the first signal
+
 phaseshifft options:
 -s, --size     FFT size [128]
 -p, --step     step through n samples per window; generally should be equal to -s [-s]
@@ -80,13 +112,20 @@ while true; do
         set +o nounset
         if [[ -z "$2" ]]
         then
-            file_none
-        elif [[ ! -e "$2" ]]
+            echo 'no file was specified'
+            help_text
+            exit 1
+        elif [[ -n "$2" ]]
         then
-            file_notexist "$2"
+            verify_mode "$2" "$3" "$4"
+        elif [[ -z "$3" ]]
+        then
+            file_none
+        elif [[ ! -e "$3" ]]
+        then
+            file_notexist "$3"
         fi
         set -o nounset
-        filepath="$2"
         break
         ;;
     *)
@@ -99,24 +138,64 @@ done
 size="${size:-128}"
 step="${step:-$size}"
 skip="${skip:-64}"
-offset="${offset:-$skip}"
 pixfmt="${pixfmt:-rgb24}"
 
-filename="$(basename "$filepath")"
-base_filename="${filename%.*}"
-blanked_name="$base_filename"-"$size"-"$step"-"$skip"-"$offset"-"$pixfmt"
-output_name="${output_name:-$blanked_name}"
-
-res="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$filepath")"
+res="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$firstpath")"
+width="$(echo "$res" | cut -dx -f1)"
+case "$pixfmt" in
+    yuv444p | gbrp)
+        expected_offset="$(( (skip * width - skip) % width ))"
+        expected_nonneg="${expected_offset#-}"
+        offset="${offset:-$expected_nonneg}"
+        ;;
+    rgb24)
+        expected_offset="$(( (3 * skip * width - skip) % width ))"
+        expected_nonneg="${expected_offset#-}"
+        offset="${offset:-$expected_nonneg}"
+        ;;
+    *)
+        expected_offset="$(( (3 * skip * width - skip) % width ))"
+        expected_nonneg="${expected_offset#-}"
+        offset="${offset:-$expected_nonneg}"
+        ;;
+esac
 tmp="$(mktemp -d)"
 trap 'cleanup' ERR EXIT
 
-ffmpeg -hide_banner -i "$filepath" -f rawvideo -pix_fmt "$pixfmt" "$tmp"/tmp.rgb24
-ffmpeg -hide_banner -f u8 -ar 48000 -i "$tmp"/tmp.rgb24 -c:a pcm_f32le "$tmp"/tmp.wav
+if [[ $mode == "shift" ]]
+then
+    filename="$(basename "$firstpath")"
+    base_filename="${filename%.*}"
+    blanked_name="$base_filename"-"$mode"-"$size"-"$step"-"$skip"-"$offset"-"$pixfmt"
+    output_name="${output_name:-$blanked_name}"
 
-phaseshifft -s "$size" -p "$step" -k "$skip" "$tmp"/tmp.wav "$tmp"/tmp-phased.wav
+    ffmpeg -hide_banner -i "$firstpath" -f rawvideo -pix_fmt "$pixfmt" "$tmp"/tmp.rgb24
+    ffmpeg -hide_banner -f u8 -ar 48000 -i "$tmp"/tmp.rgb24 -c:a pcm_f32le "$tmp"/tmp.wav
 
-ffmpeg -hide_banner -i "$tmp"/tmp-phased.wav -af adelay=delays="$offset"S:all=1 -f u8 "$tmp"/tmp-phased.u8
-truncate --reference "$tmp"/tmp.rgb24 "$tmp"/tmp-phased.u8
+    phaseshifft shift -s "$size" -p "$step" -k "$skip" "$tmp"/tmp.wav "$tmp"/tmp-phased.wav
 
-ffmpeg -hide_banner -f rawvideo -pix_fmt "$pixfmt" -s "$res" -i "$tmp"/tmp-phased.u8 "$output_name".png -y
+    ffmpeg -hide_banner -i "$tmp"/tmp-phased.wav -af adelay=delays="$offset"S:all=1 -f u8 "$tmp"/tmp-phased.u8
+    truncate --reference "$tmp"/tmp.rgb24 "$tmp"/tmp-phased.u8
+
+    ffmpeg -hide_banner -f rawvideo -pix_fmt "$pixfmt" -s "$res" -i "$tmp"/tmp-phased.u8 "$output_name".png -y
+elif [[ $mode == transplant ]]
+then
+    filename="$(basename "$firstpath")"
+    secondname="$(basename "$secondpath")"
+    base_filename="${filename%.*}"
+    base_secondname="${secondname%.*}"
+    blanked_name="$base_filename"-"$base_secondname"-"$mode"-"$size"-"$step"-"$skip"-"$offset"-"$pixfmt"
+    output_name="${output_name:-$blanked_name}"
+
+    ffmpeg -hide_banner -i "$firstpath" -f rawvideo -pix_fmt "$pixfmt" "$tmp"/first.rgb24
+    ffmpeg -hide_banner -f u8 -ar 48000 -i "$tmp"/first.rgb24 -c:a pcm_f32le "$tmp"/first.wav
+    ffmpeg -hide_banner -i "$secondpath" -f rawvideo -pix_fmt "$pixfmt" "$tmp"/second.rgb24
+    ffmpeg -hide_banner -f u8 -ar 48000 -i "$tmp"/second.rgb24 -c:a pcm_f32le "$tmp"/second.wav
+
+    phaseshifft transplant -s "$size" -p "$step" -k "$skip" "$tmp"/first.wav "$tmp"/second.wav "$tmp"/tmp-phased.wav
+
+    ffmpeg -hide_banner -i "$tmp"/tmp-phased.wav -af adelay=delays="$offset"S:all=1 -f u8 "$tmp"/tmp-phased.u8
+    truncate --reference "$tmp"/first.rgb24 "$tmp"/tmp-phased.u8
+
+    ffmpeg -hide_banner -f rawvideo -pix_fmt "$pixfmt" -s "$res" -i "$tmp"/tmp-phased.u8 "$output_name".png -y
+fi
