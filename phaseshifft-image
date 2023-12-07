@@ -142,23 +142,29 @@ pixfmt="${pixfmt:-rgb24}"
 
 res="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$firstpath")"
 width="$(echo "$res" | cut -dx -f1)"
-case "$pixfmt" in
-    yuv444p | gbrp)
-        expected_offset="$(( (skip * width - skip) % width ))"
-        expected_nonneg="${expected_offset#-}"
-        offset="${offset:-$expected_nonneg}"
-        ;;
-    rgb24)
-        expected_offset="$(( (3 * skip * width - skip) % width ))"
-        expected_nonneg="${expected_offset#-}"
-        offset="${offset:-$expected_nonneg}"
-        ;;
-    *)
-        expected_offset="$(( (3 * skip * width - skip) % width ))"
-        expected_nonneg="${expected_offset#-}"
-        offset="${offset:-$expected_nonneg}"
-        ;;
-esac
+if [[ "$mode" == shift ]]
+then
+    case "$pixfmt" in
+        yuv444p | nv12)
+            expected_offset="$(( (skip * width - skip) % width ))"
+            expected_nonneg="${expected_offset#-}"
+            offset="${offset:-$expected_nonneg}"
+            ;;
+        rgb24 | gbrp)
+            expected_offset="$(( (3 * skip * width - skip) % (3 * width) ))"
+            expected_nonneg="${expected_offset#-}"
+            offset="${offset:-$expected_nonneg}"
+            ;;
+        *)
+            expected_offset="$(( (3 * skip * width - skip) % width ))"
+            expected_nonneg="${expected_offset#-}"
+            offset="${offset:-$expected_nonneg}"
+            ;;
+    esac
+else
+    offset=0
+fi
+
 tmp="$(mktemp -d)"
 trap 'cleanup' ERR EXIT
 
