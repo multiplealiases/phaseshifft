@@ -141,7 +141,7 @@ fn run_shift(
     plan: &mut RealFftPlanner<f32>,
 ) {
     let mut input_shifted: Vec<f32> = input.clone();
-    input_shifted.rotate_left(args.global_args.skip);
+    input_shifted.rotate_right(args.global_args.skip);
 
     let windows = input
         .windows(args.global_args.size)
